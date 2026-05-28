@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MarketMindAPI.Services;
 
 namespace MarketMindAPI.Controllers;
 
@@ -6,30 +8,41 @@ namespace MarketMindAPI.Controllers;
 [Route("api/[controller]")]
 public class StocksController : ControllerBase
 {
-    // GET /api/stocks
-    [HttpGet]
-    public IActionResult GetAll()
+    private readonly StockService _stocks;
+
+    public StocksController(StockService stocks)
     {
-        var stocks = new[]
-        {
-            new { Symbol = "THYAO.IS", Name = "Türk Hava Yolları" },
-            new { Symbol = "GARAN.IS", Name = "Garanti Bankası" },
-            new { Symbol = "ASELS.IS", Name = "Aselsan" },
-            new { Symbol = "BIMAS.IS", Name = "BİM" },
-            new { Symbol = "POLTK.IS", Name = "Poltek" }
-        };
-        return Ok(stocks);
+        _stocks = stocks;
     }
 
-    // GET /api/stocks/THYAO.IS
-    [HttpGet("{ticker}")]
-    public IActionResult GetByTicker(string ticker)
+    /// <summary>BİST 100 endeks özeti</summary>
+    [HttpGet("bist100")]
+    public async Task<IActionResult> GetBist100()
     {
-        return Ok(new
-        {
-            Symbol = ticker.ToUpper(),
-            Message = $"{ticker.ToUpper()} verisi",
-            Timestamp = DateTime.Now
-        });
+        var data = await _stocks.GetBist100Async();
+        if (data == null) return NotFound(new { error = "BİST100 verisi alınamadı." });
+        return Ok(data);
+    }
+
+    /// <summary>Hisse güncel fiyat ve temel verileri</summary>
+    [HttpGet("{ticker}")]
+    public async Task<IActionResult> GetQuote(string ticker)
+    {
+        var data = await _stocks.GetQuoteAsync(ticker.ToUpper());
+        if (data == null) return NotFound(new { error = $"{ticker} bulunamadı." });
+        return Ok(data);
+    }
+
+    /// <summary>Hisse fiyat geçmişi (OHLCV)</summary>
+    [HttpGet("{ticker}/history")]
+    public async Task<IActionResult> GetHistory(string ticker, [FromQuery] string period = "1mo")
+    {
+        var validPeriods = new[] { "7d", "1mo", "3mo", "6mo", "1y" };
+        if (!validPeriods.Contains(period))
+            return BadRequest(new { error = "Geçerli period: 7d, 1mo, 3mo, 6mo, 1y" });
+
+        var history = await _stocks.GetHistoryAsync(ticker.ToUpper(), period);
+        if (history.Count == 0) return NotFound(new { error = "Geçmiş veri bulunamadı." });
+        return Ok(history);
     }
 }

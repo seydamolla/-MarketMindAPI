@@ -21,50 +21,43 @@ public class AuthController : ControllerBase
         _config = config;
     }
 
-    // POST /api/auth/register
+    /// <summary>Yeni kullanıcı kaydı</summary>
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
         var user = new User { UserName = dto.Email, Email = dto.Email, FullName = dto.FullName };
         var result = await _userManager.CreateAsync(user, dto.Password);
-
         if (!result.Succeeded)
-            return BadRequest(result.Errors);
-
-        return Ok("Kayıt başarılı!");
+            return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+        return Ok(new { message = "Kayıt başarılı!" });
     }
 
-    // POST /api/auth/login
+    /// <summary>Giriş yap — JWT token döner</summary>
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
         var user = await _userManager.FindByEmailAsync(dto.Email);
         if (user == null || !await _userManager.CheckPasswordAsync(user, dto.Password))
-            return Unauthorized("Email veya şifre hatalı!");
+            return Unauthorized(new { error = "E-posta veya şifre hatalı." });
 
-        var token = GenerateToken(user);
-        return Ok(new { Token = token });
+        return Ok(new { token = GenerateToken(user), email = user.Email, fullName = user.FullName });
     }
 
     private string GenerateToken(User user)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email!)
         };
-
         var token = new JwtSecurityToken(
             issuer: _config["Jwt:Issuer"],
             audience: _config["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.Now.AddDays(7),
-            signingCredentials: creds
-        );
-
+            expires: DateTime.UtcNow.AddDays(7),
+            signingCredentials: creds);
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }
