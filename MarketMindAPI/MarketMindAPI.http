@@ -1,0 +1,6 @@
+@MarketMindAPI_HostAddress = http://localhost:5014
+
+GET {{MarketMindAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
